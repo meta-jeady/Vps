@@ -1,0 +1,153 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'djiogofoyet@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: AdminUser
+    function isValidAdminUser(data, adminId) {
+      return data.keys().hasAll(['uid', 'label', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'label', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.uid == adminId &&
+        data.label is string && data.label.size() >= 1 && data.label.size() <= 80 &&
+        data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: VpsSettings
+    function isValidVpsSettings(data) {
+      return data.keys().hasAll(['vlessTemplate', 'defaultHost', 'defaultExpiryDays', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['vlessTemplate', 'defaultHost', 'defaultExpiryDays', 'updatedBy', 'updatedAt']) &&
+        data.vlessTemplate is string && data.vlessTemplate.size() >= 15 && data.vlessTemplate.size() <= 2000 &&
+        data.defaultHost is string && data.defaultHost.size() >= 1 && data.defaultHost.size() <= 255 &&
+        (data.defaultExpiryDays is int || data.defaultExpiryDays is float) &&
+        data.defaultExpiryDays >= 1 && data.defaultExpiryDays <= 3650 &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+        data.updatedBy.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.updatedBy == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: VpnClient
+    function isValidVpnClient(data, clientId) {
+      return data.keys().hasAll([
+          'clientId', 'clientName', 'host', 'vlessConfig',
+          'quotaGb', 'quotaBytes', 'consumedBytes', 'expireDate',
+          'status', 'locked', 'usageKey', 'configRevision',
+          'ownerUid', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'clientId', 'clientName', 'host', 'vlessConfig',
+          'quotaGb', 'quotaBytes', 'consumedBytes', 'expireDate',
+          'status', 'locked', 'usageKey', 'configRevision',
+          'ownerUid', 'createdAt', 'updatedAt'
+        ]) &&
+        data.clientId is string && data.clientId.size() >= 4 && data.clientId.size() <= 64 &&
+        data.clientId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.clientId == clientId &&
+        data.clientName is string && data.clientName.size() >= 2 && data.clientName.size() <= 80 &&
+        data.host is string && data.host.size() >= 1 && data.host.size() <= 255 &&
+        data.vlessConfig is string && data.vlessConfig.size() >= 15 && data.vlessConfig.size() <= 2500 &&
+        (data.quotaGb is int || data.quotaGb is float) && data.quotaGb > 0 && data.quotaGb <= 100000 &&
+        (data.quotaBytes is int || data.quotaBytes is float) && data.quotaBytes > 0 &&
+        (data.consumedBytes is int || data.consumedBytes is float) && data.consumedBytes >= 0 &&
+        data.expireDate is string && data.expireDate.size() >= 10 && data.expireDate.size() <= 32 &&
+        data.status in ['active', 'suspended'] &&
+        data.locked is bool &&
+        data.usageKey is string && data.usageKey.size() >= 4 && data.usageKey.size() <= 80 &&
+        data.usageKey.matches('^[a-zA-Z0-9_\\-]+$') &&
+        (data.configRevision is int || data.configRevision is float) && data.configRevision >= 1 &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+        data.ownerUid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Connection health check document
+    match /test/{docId} {
+      allow get: if isValidId(docId) && docId == 'connection';
+    }
+
+    // Authorized Administrators
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isVerifiedUser() && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(adminId) && isAdmin() &&
+        isValidAdminUser(incoming(), adminId) &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(adminId) && isAdmin() &&
+        isValidAdminUser(incoming(), adminId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['label']) &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // Global VPS Settings (VLESS Template & Default Host)
+    match /vps_settings/{settingId} {
+      allow get: if isValidId(settingId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(settingId) && isAdmin() &&
+        isValidVpsSettings(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) && isAdmin() &&
+        isValidVpsSettings(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['vlessTemplate', 'defaultHost', 'defaultExpiryDays', 'updatedBy', 'updatedAt']) &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    // VPN Clients keyed by App Installation ID (OR-XXXX-XXXX / XV-XXXX-XXXX)
+    // - Single-doc get is permitted by exact valid App ID (no PII stored) so the Android APK and client can sync in real time.
+    // - Collection list and all mutations are strictly restricted to verified admins.
+    match /vpn_clients/{clientId} {
+      allow get: if isValidId(clientId) && (isAdmin() || clientId.matches('^(OR|XV)-[A-Z0-9]{4}-[A-Z0-9]{4}$'));
+      allow list: if isAdmin();
+      allow create: if isValidId(clientId) && isAdmin() &&
+        isValidVpnClient(incoming(), clientId) &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(clientId) && isAdmin() &&
+        isValidVpnClient(incoming(), clientId) &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (incoming().diff(existing()).affectedKeys().hasOnly(['clientName', 'host', 'vlessConfig', 'quotaGb', 'quotaBytes', 'consumedBytes', 'expireDate', 'status', 'locked', 'usageKey', 'configRevision', 'updatedAt'])) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'configRevision', 'updatedAt']))
+        );
+      allow delete: if isValidId(clientId) && isAdmin();
+    }
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized administrator account for the Orange VPN VPS Panel.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "label", "createdAt"]
+    },
+    "VpsSettings": {
+      "title": "VpsSettings",
+      "description": "Global VPS VLESS template and default Host configuration.",
+      "type": "object",
+      "properties": {
+        "vlessTemplate": {
+          "type": "string",
+          "minLength": 15,
+          "maxLength": 2000
+        },
+        "defaultHost": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "defaultExpiryDays": {
+          "type": "number"
+        },
+        "updatedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["vlessTemplate", "defaultHost", "defaultExpiryDays", "updatedBy", "updatedAt"]
+    },
+    "VpnClient": {
+      "title": "VpnClient",
+      "description": "Provisioned VPN client bound to a unique App Installation ID with quota, host, and real-time VLESS configuration.",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "clientName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "vlessConfig": {
+          "type": "string",
+          "minLength": 15,
+          "maxLength": 2500
+        },
+        "quotaGb": {
+          "type": "number"
+        },
+        "quotaBytes": {
+          "type": "number"
+        },
+        "consumedBytes": {
+          "type": "number"
+        },
+        "expireDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "suspended"]
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "usageKey": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "configRevision": {
+          "type": "number"
+        },
+        "ownerUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "clientId",
+        "clientName",
+        "host",
+        "vlessConfig",
+        "quotaGb",
+        "quotaBytes",
+        "consumedBytes",
+        "expireDate",
+        "status",
+        "locked",
+        "usageKey",
+        "configRevision",
+        "ownerUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Authorized VPS panel administrators."
+    },
+    "/vps_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/VpsSettings" },
+      "description": "Global VPS VLESS template and default Host configuration."
+    },
+    "/vpn_clients/{clientId}": {
+      "schema": { "$ref": "#/entities/VpnClient" },
+      "description": "Real-time client provisioning records keyed by App Installation ID (OR-XXXX-XXXX)."
+    }
+  }
+}
