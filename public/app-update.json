@@ -3,6 +3,6 @@
   "minVersion": "2.0.0",
   "releaseDate": "2026-11-04",
   "releaseNotes": "Version 2.3.7 : notifications expiration + 100 Mo + correctif téléchargement.",
-  "downloadUrl": "https://github.com/meta-jeady/Versan/releases/download/v27/app-release.apk",
+  "downloadUrl": "https://github.com/meta-jeady/Vps/releases/download/v2/app-arm64-v8a-release.apk",
   "forceUpdate": false
 }
